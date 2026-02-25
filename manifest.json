@@ -15,6 +15,18 @@
       "128": "icon.png"
     }
   },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "summarize-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Summarize the current page"
+    }
+  },
   "icons": {
     "128": "icon.png"
   }

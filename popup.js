@@ -275,6 +275,13 @@ async function init() {
 
   // Load history on startup
   loadHistory();
+
+  // Auto-click summarize button if opened via keyboard shortcut
+  const shortcutData = await chrome.storage.session.get(['autoSummarize']);
+  if (shortcutData.autoSummarize) {
+    await chrome.storage.session.remove(['autoSummarize']);
+    setTimeout(() => $("summarize-btn").click(), 100);
+  }
 }
 
 /**
