@@ -3,6 +3,9 @@ document.addEventListener("DOMContentLoaded", init);
 const $ = (id) => document.getElementById(id);
 let summary = null;
 
+// Store last summarization context for retry functionality
+let lastSummarizeContext = null;
+
 // ============================================================================
 // WORD COUNT & READING TIME UTILITIES
 // ============================================================================
@@ -278,6 +281,7 @@ async function init() {
   $("clear-history-btn").addEventListener("click", clearHistory);
   $("clear-summary-btn").addEventListener("click", clearSummary);
   $("theme-toggle").addEventListener("click", toggleTheme);
+  $("retry-btn").addEventListener("click", retrySummarize);
 
   // Load history on startup
   loadHistory();
@@ -377,6 +381,7 @@ async function summarizePage() {
 
   setLoading(true);
   hideError();
+  hideRetryButton();
   $("result-container").classList.add("hidden");
 
   // Hoist these so they're accessible throughout the full try block
@@ -403,6 +408,16 @@ async function summarizePage() {
         });
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
+
+      // Store context for retry
+      lastSummarizeContext = {
+        provider,
+        apiKey,
+        pageContent,
+        summaryType: $("summary-type").value,
+        title: tab.title,
+        extractedImages
+      };
 
       // Display content word count and reading time
       updateContentStats(pageContent);
@@ -467,6 +482,75 @@ async function summarizePage() {
 
     // Save to history
     saveSummary(summary, tab.title, tab.url, summaryType);
+
+    // Refresh history list
+    loadHistory();
+  } catch (err) {
+    // Check if error is already a structured error object from generateSummary()
+    if (err && typeof err === "object" && err.type && err.userMessage) {
+      // Already classified, use directly
+      showError(err.userMessage);
+      console.error("[Generate Summary Error]", {
+        type: err.type,
+        debugInfo: err.debugInfo,
+        userMessage: err.userMessage,
+      });
+    } else {
+      // New error (from content extraction, validation, etc.), classify it once
+      const errorInfo = classifyError(err, null);
+      showError(errorInfo.userMessage);
+      console.error("[Generate Summary Error]", {
+        type: errorInfo.type,
+        debugInfo: errorInfo.debugInfo,
+        originalMessage: err?.message,
+      });
+    }
+  } finally {
+    setLoading(false);
+  }
+}
+
+/**
+ * Retry the last summarization request
+ */
+async function retrySummarize() {
+  if (!lastSummarizeContext) {
+    showError("No previous request to retry. Please try again from the beginning.");
+    return;
+  }
+
+  const { provider, apiKey, pageContent, summaryType, title, extractedImages } = lastSummarizeContext;
+
+  setLoading(true);
+  hideError();
+  hideRetryButton();
+  $("result-container").classList.add("hidden");
+
+  try {
+    summary = await generateSummary(
+      provider,
+      apiKey,
+      pageContent,
+      summaryType,
+      title,
+      extractedImages,
+    );
+
+    // Convert Markdown to raw HTML
+    const rawHTML = marked.parse(summary);
+
+    // Sanitize the raw HTML to strip out any malicious scripts or invalid tags
+    const cleanHTML = DOMPurify.sanitize(rawHTML);
+
+    // Safely inject sanitized HTML into the UI
+    $("summary-result").innerHTML = cleanHTML;
+    $("result-container").classList.remove("hidden");
+
+    // Display summary word count and reading time
+    updateSummaryStats(summary);
+
+    // Save to history
+    saveSummary(summary, title, "", summaryType);
 
     // Refresh history list
     loadHistory();
@@ -651,6 +735,7 @@ function showError(msg) {
   errorElement.textContent = msg;
   errorElement.classList.remove("hidden");
   errorElement.style.display = "block";
+  showRetryButton();
   console.warn("[UI Error]", msg);
 }
 
@@ -658,11 +743,27 @@ function hideError() {
   $("error-msg").classList.add("hidden");
 }
 
+/**
+ * Show the retry button when an error occurs
+ */
+function showRetryButton() {
+  $("retry-btn").classList.remove("hidden");
+}
+
+/**
+ * Hide the retry button
+ */
+function hideRetryButton() {
+  $("retry-btn").classList.add("hidden");
+}
+
 function clearSummary() {
   summary = null;
   $("summary-result").textContent = "";
   $("result-container").classList.add("hidden");
   hideError();
+  hideRetryButton();
+  lastSummarizeContext = null;
 }
 
 async function copyAsMarkdown() {
