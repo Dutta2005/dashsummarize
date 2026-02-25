@@ -18,6 +18,7 @@
   "background": {
     "service_worker": "background.js"
   },
+  "minimum_chrome_version": "127",
   "commands": {
     "summarize-page": {
       "suggested_key": {

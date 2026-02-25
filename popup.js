@@ -280,7 +280,7 @@ async function init() {
   const shortcutData = await chrome.storage.session.get(['autoSummarize']);
   if (shortcutData.autoSummarize) {
     await chrome.storage.session.remove(['autoSummarize']);
-    setTimeout(() => $("summarize-btn").click(), 100);
+    setTimeout(() => $("summarize-btn")?.click(), 100);
   }
 }
 
