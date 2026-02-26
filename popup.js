@@ -409,16 +409,6 @@ async function summarizePage() {
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
 
-      // Store context for retry
-      lastSummarizeContext = {
-        provider,
-        apiKey,
-        pageContent,
-        summaryType: $("summary-type").value,
-        title: tab.title,
-        extractedImages
-      };
-
       // Display content word count and reading time
       updateContentStats(pageContent);
 
@@ -458,6 +448,18 @@ async function summarizePage() {
     }
 
     const summaryType = $("summary-type").value;
+
+    // Store validated context for retry
+    lastSummarizeContext = {
+      provider,
+      apiKey,
+      pageContent,
+      summaryType,
+      title: tab.title,
+      url: tab.url,
+      extractedImages,
+    };
+
     summary = await generateSummary(
       provider,
       apiKey,
@@ -490,6 +492,7 @@ async function summarizePage() {
     if (err && typeof err === "object" && err.type && err.userMessage) {
       // Already classified, use directly
       showError(err.userMessage);
+      showRetryButton();
       console.error("[Generate Summary Error]", {
         type: err.type,
         debugInfo: err.debugInfo,
@@ -499,6 +502,7 @@ async function summarizePage() {
       // New error (from content extraction, validation, etc.), classify it once
       const errorInfo = classifyError(err, null);
       showError(errorInfo.userMessage);
+      showRetryButton();
       console.error("[Generate Summary Error]", {
         type: errorInfo.type,
         debugInfo: errorInfo.debugInfo,
@@ -516,11 +520,19 @@ async function summarizePage() {
 async function retrySummarize() {
   if (!lastSummarizeContext) {
     showError("No previous request to retry. Please try again from the beginning.");
+    hideRetryButton();
     return;
   }
 
-  const { provider, apiKey, pageContent, summaryType, title, extractedImages } = lastSummarizeContext;
+  const { provider, apiKey, pageContent, summaryType, title, url, extractedImages } = lastSummarizeContext;
 
+  if (!pageContent || pageContent.length < 100) {
+    showError(USER_MESSAGES.content_extraction_failed);
+    hideRetryButton();
+    return;
+  }
+
+  $("retry-btn").disabled = true;
   setLoading(true);
   hideError();
   hideRetryButton();
@@ -550,7 +562,7 @@ async function retrySummarize() {
     updateSummaryStats(summary);
 
     // Save to history
-    saveSummary(summary, title, "", summaryType);
+    saveSummary(summary, title, url || "", summaryType);
 
     // Refresh history list
     loadHistory();
@@ -559,6 +571,9 @@ async function retrySummarize() {
     if (err && typeof err === "object" && err.type && err.userMessage) {
       // Already classified, use directly
       showError(err.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: err.type,
         debugInfo: err.debugInfo,
@@ -568,6 +583,9 @@ async function retrySummarize() {
       // New error (from content extraction, validation, etc.), classify it once
       const errorInfo = classifyError(err, null);
       showError(errorInfo.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: errorInfo.type,
         debugInfo: errorInfo.debugInfo,
@@ -720,6 +738,7 @@ async function generateSummary(provider, apiKey, content, type, title, images = 
 
 function setLoading(loading) {
   $("summarize-btn").disabled = loading;
+  $("retry-btn").disabled = loading;
   $("btn-text").textContent = loading
     ? "Summarizing..."
     : "Summarize This Page";
@@ -735,7 +754,6 @@ function showError(msg) {
   errorElement.textContent = msg;
   errorElement.classList.remove("hidden");
   errorElement.style.display = "block";
-  showRetryButton();
   console.warn("[UI Error]", msg);
 }
 
