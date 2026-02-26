@@ -165,6 +165,36 @@ function trimContent(content, maxChars) {
 }
 
 /**
+ * Remove common code block patterns from extracted page text
+ * (fenced blocks, inline code markers, and heavily-indented code lines)
+ * @param {string} content - Raw extracted content
+ * @returns {string} - Content with code-heavy sections reduced
+ */
+function stripCodeBlocks(content) {
+  if (!content || typeof content !== "string") {
+    return "";
+  }
+
+  let cleaned = content;
+
+  // Remove fenced code blocks: ```...``` or ~~~...~~~
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, " ");
+  cleaned = cleaned.replace(/~~~[\s\S]*?~~~/g, " ");
+
+  // Remove inline code snippets enclosed with backticks
+  cleaned = cleaned.replace(/`[^`\n]+`/g, " ");
+
+  // Remove lines that look like code (4+ leading spaces / tab)
+  cleaned = cleaned
+    .split("\n")
+    .filter((line) => !/^\s{4,}|^\t/.test(line))
+    .join("\n");
+
+  // Normalize whitespace after removals
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
+/**
  * Show limit warning in the UI
  * @param {number} estimatedTokens - Estimated token count
  * @param {number} safeLimit - Safe token limit for the provider
@@ -388,7 +418,9 @@ async function init() {
     "gemini_api_key",
     "claude_api_key",
     "theme",
+    "exclude_code_blocks",
   ]);
+
 
   // Set default provider to OpenAI for backward compatibility
   const currentProvider = stored.ai_provider || "openai";
@@ -409,8 +441,12 @@ async function init() {
   const savedTheme = stored.theme || "dark";
   applyTheme(savedTheme);
 
+  // Load exclude code blocks preference
+  $("exclude-code-blocks").checked = stored.exclude_code_blocks || false;
+
   // Show the correct API key input group
   updateProviderUI(currentProvider);
+
 
   // Display key status if any key is saved
   const currentKey = stored[`${currentProvider}_api_key`];
@@ -443,6 +479,7 @@ async function init() {
     setTimeout(() => $("summarize-btn")?.click(), 100);
   }
 }
+
 
 /**
  * Apply the theme to the body
@@ -571,6 +608,12 @@ const [{ result: extractedContent }] =
   });
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
+
+      // Check if code blocks should be excluded
+      const excludeCodeBlocks = $("exclude-code-blocks").checked;
+      if (excludeCodeBlocks) {
+        pageContent = stripCodeBlocks(pageContent);
+      }
 
       // Display content word count and reading time
       updateContentStats(pageContent);
