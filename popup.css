@@ -189,6 +189,11 @@ input::placeholder {
   box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
 }
 
+.btn-retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .hidden {
   display: none !important;
 }
@@ -317,6 +322,7 @@ input::placeholder {
   margin-top: 25px;
   border-top: 1px solid #3a3a5c;
   padding-top: 20px;
+  margin: 10px;
 }
 
 .section-header {
@@ -587,25 +593,7 @@ body.light-theme ::-webkit-scrollbar-thumb {
   background: #a0aec0;
 }
 
-/* Light theme styles for toggle */
-body.light-theme .toggle-switch {
-  background: #cbd5e0;
-}
-
-body.light-theme .toggle-label input:checked + .toggle-switch {
-  background: #6c63ff;
-}
-
-body.light-theme .toggle-text {
-  color: #2d3748;
-}
-
-body.light-theme .toggle-description {
-  color: #718096;
-}
-
 /* Light theme styles for limit warning and trim notice */
-
 body.light-theme .limit-warning {
   background: rgba(245, 158, 11, 0.1);
   color: #b45309;
