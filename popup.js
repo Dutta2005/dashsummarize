@@ -176,7 +176,7 @@ function showLimitWarning(estimatedTokens, safeLimit) {
   warningEl.innerHTML = `
     <span>Content is very long (~${estimatedTokens.toLocaleString()} tokens). 
     May exceed ${safeLimit.toLocaleString()} token safe limit. 
-    Consider using a shorter page or the summary may be truncated.</span>
+    Consider using a shorter page or the summary may be truncated. Estimate is approximate — may vary for code or non-Latin text.</span>
   `;
   warningEl.classList.remove('hidden');
 }
@@ -242,7 +242,7 @@ const TOKEN_LIMITS = {
     charsPerToken: 4,     // Approximate chars per token
   },
   gemini: {
-    maxTokens: 1000000,   // Gemini 2.5 Flash context window
+    maxTokens: 1048576,   // Gemini 2.5 Flash context window
     safeLimit: 800000,    // Conservative limit
     charsPerToken: 4,
   },
@@ -563,51 +563,42 @@ async function summarizePage() {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: extractPageContent,
+          args: [MAX_CONTENT_LENGTH],
         });
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
 
-      // Store context for retry
-      lastSummarizeContext = {
-        provider,
-        apiKey,
-        pageContent,
-        summaryType: $("summary-type").value,
-        title: tab.title,
-        extractedImages
-      };
-
-  // Display content word count and reading time
-  updateContentStats(pageContent);
-
-  // Check content limits and show warnings if needed
-  const limitCheck = checkContentLimit(pageContent, provider);
-  
-  if (limitCheck.isOverLimit) {
-    // Show warning before trimming
-    showLimitWarning(limitCheck.estimatedTokens, limitCheck.safeLimit);
-    
-    // Calculate safe character limit
-    const safeCharLimit = limitCheck.safeLimit * limitCheck.charsPerToken;
-    
-    // Trim content intelligently if it exceeds safe limit
-    if (pageContent.length > safeCharLimit) {
-      const originalLength = pageContent.length;
-      pageContent = trimContent(pageContent, safeCharLimit);
-      
-      // Show trim notice
-      showTrimNotice(originalLength, pageContent.length);
-      
-      // Update stored context with trimmed content
-      lastSummarizeContext.pageContent = pageContent;
-      
-      // Update stats display with trimmed content
+      // Display content word count and reading time
       updateContentStats(pageContent);
-    }
-  } else {
-    // Hide any previous warnings
-    hideLimitWarnings();
-  }
+
+      // Check content limits and show warnings if needed
+      let trimmedContent = pageContent;
+      const limitCheck = checkContentLimit(trimmedContent, provider);
+
+      if (limitCheck.isOverLimit) {
+        // Show warning before trimming
+        showLimitWarning(limitCheck.estimatedTokens, limitCheck.safeLimit);
+
+        // Calculate safe character limit
+        const safeCharLimit = limitCheck.safeLimit * limitCheck.charsPerToken;
+
+        // Trim content intelligently if it exceeds safe limit
+        if (trimmedContent.length > safeCharLimit) {
+          const originalLength = trimmedContent.length;
+          trimmedContent = trimContent(trimmedContent, safeCharLimit);
+
+          // Show trim notice
+          showTrimNotice(originalLength, trimmedContent.length);
+
+          // Update stats display with trimmed content
+          updateContentStats(trimmedContent);
+        }
+      } else {
+        // Hide any previous warnings
+        hideLimitWarnings();
+      }
+
+      pageContent = trimmedContent;
 
 
       // Show image indicator
@@ -721,8 +712,8 @@ async function summarizePage() {
  */
 async function retrySummarize() {
   if (!lastSummarizeContext) {
-    showError("No previous request to retry. Please try again from the beginning.");
     hideRetryButton();
+    showError("No previous request to retry. Please try again from the beginning.");
     return;
   }
 
@@ -748,6 +739,7 @@ async function retrySummarize() {
       summaryType,
       title,
       extractedImages,
+      url,
     );
 
     // Convert Markdown to raw HTML
@@ -796,79 +788,11 @@ async function retrySummarize() {
     }
   } finally {
     setLoading(false);
+    $("retry-btn").disabled = false;
   }
 }
 
-/**
- * Retry the last summarization request
- */
-async function retrySummarize() {
-  if (!lastSummarizeContext) {
-    showError("No previous request to retry. Please try again from the beginning.");
-    return;
-  }
-
-  const { provider, apiKey, pageContent, summaryType, title, extractedImages } = lastSummarizeContext;
-
-  setLoading(true);
-  hideError();
-  hideRetryButton();
-  $("result-container").classList.add("hidden");
-
-  try {
-    summary = await generateSummary(
-      provider,
-      apiKey,
-      pageContent,
-      summaryType,
-      title,
-      extractedImages,
-    );
-
-    // Convert Markdown to raw HTML
-    const rawHTML = marked.parse(summary);
-
-    // Sanitize the raw HTML to strip out any malicious scripts or invalid tags
-    const cleanHTML = DOMPurify.sanitize(rawHTML);
-
-    // Safely inject sanitized HTML into the UI
-    $("summary-result").innerHTML = cleanHTML;
-    $("result-container").classList.remove("hidden");
-
-    // Display summary word count and reading time
-    updateSummaryStats(summary);
-
-    // Save to history
-    saveSummary(summary, title, "", summaryType);
-
-    // Refresh history list
-    loadHistory();
-  } catch (err) {
-    // Check if error is already a structured error object from generateSummary()
-    if (err && typeof err === "object" && err.type && err.userMessage) {
-      // Already classified, use directly
-      showError(err.userMessage);
-      console.error("[Generate Summary Error]", {
-        type: err.type,
-        debugInfo: err.debugInfo,
-        userMessage: err.userMessage,
-      });
-    } else {
-      // New error (from content extraction, validation, etc.), classify it once
-      const errorInfo = classifyError(err, null);
-      showError(errorInfo.userMessage);
-      console.error("[Generate Summary Error]", {
-        type: errorInfo.type,
-        debugInfo: errorInfo.debugInfo,
-        originalMessage: err?.message,
-      });
-    }
-  } finally {
-    setLoading(false);
-  }
-}
-
-function extractPageContent() {
+function extractPageContent(maxLength) {
   const selectors = [
     "article",
     "main",
@@ -928,7 +852,7 @@ function extractPageContent() {
 
   // Return full content for client-side trimming based on provider limits
   // The content will be intelligently trimmed in summarizePage() if needed
-  return { text: content.slice(0, MAX_CONTENT_LENGTH), images };
+  return { text: content.slice(0, maxLength), images };
 
 }
 
@@ -1028,7 +952,11 @@ function showError(msg) {
   errorElement.textContent = msg;
   errorElement.classList.remove("hidden");
   errorElement.style.display = "block";
-  showRetryButton();
+  if (lastSummarizeContext) {
+    showRetryButton();
+  } else {
+    hideRetryButton();
+  }
   console.warn("[UI Error]", msg);
 }
 

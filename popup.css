@@ -322,6 +322,7 @@ input::placeholder {
   margin-top: 25px;
   border-top: 1px solid #3a3a5c;
   padding-top: 20px;
+  margin: 10px;
 }
 
 .section-header {
