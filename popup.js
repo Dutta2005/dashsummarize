@@ -165,6 +165,36 @@ function trimContent(content, maxChars) {
 }
 
 /**
+ * Remove common code block patterns from extracted page text
+ * (fenced blocks, inline code markers, and heavily-indented code lines)
+ * @param {string} content - Raw extracted content
+ * @returns {string} - Content with code-heavy sections reduced
+ */
+function stripCodeBlocks(content) {
+  if (!content || typeof content !== "string") {
+    return "";
+  }
+
+  let cleaned = content;
+
+  // Remove fenced code blocks: ```...``` or ~~~...~~~
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, " ");
+  cleaned = cleaned.replace(/~~~[\s\S]*?~~~/g, " ");
+
+  // Remove inline code snippets enclosed with backticks
+  cleaned = cleaned.replace(/`[^`\n]+`/g, " ");
+
+  // Remove lines that look like code (4+ leading spaces / tab)
+  cleaned = cleaned
+    .split("\n")
+    .filter((line) => !/^\s{4,}|^\t/.test(line))
+    .join("\n");
+
+  // Normalize whitespace after removals
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
+/**
  * Show limit warning in the UI
  * @param {number} estimatedTokens - Estimated token count
  * @param {number} safeLimit - Safe token limit for the provider
@@ -578,16 +608,6 @@ const [{ result: extractedContent }] =
   });
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
-
-      // Store context for retry
-      lastSummarizeContext = {
-        provider,
-        apiKey,
-        pageContent,
-        summaryType: $("summary-type").value,
-        title: tab.title,
-        extractedImages
-      };
 
       // Check if code blocks should be excluded
       const excludeCodeBlocks = $("exclude-code-blocks").checked;

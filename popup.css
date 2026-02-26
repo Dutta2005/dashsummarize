@@ -581,6 +581,10 @@ body.light-theme .theme-toggle-btn {
   border-color: #cbd5e0;
 }
 
+body.light-theme .toggle-text {
+  color: #2d3748;
+}
+
 body.light-theme .theme-toggle-btn:hover {
   background: rgba(108, 99, 255, 0.1);
 }
