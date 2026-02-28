@@ -7,6 +7,63 @@ let summary = null;
 let lastSummarizeContext = null;
 
 // ============================================================================
+// AUTO-SCROLL FUNCTIONS
+// ============================================================================
+
+/**
+ * Scroll to the top of the result container with smooth behavior
+ */
+function scrollToTop() {
+  const resultContainer = $("result-container");
+  if (resultContainer) {
+    resultContainer.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  }
+}
+
+/**
+ * Scroll to the bottom of the result container with smooth behavior
+ */
+function scrollToBottom() {
+  const resultContainer = $("result-container");
+  if (resultContainer) {
+    resultContainer.scrollTo({
+      top: resultContainer.scrollHeight,
+      behavior: "smooth"
+    });
+  }
+}
+
+/**
+ * Update scroll button visibility based on scroll position
+ */
+function updateScrollButtons() {
+  const resultContainer = $("result-container");
+  const scrollToTopBtn = $("scroll-to-top");
+  const scrollToBottomBtn = $("scroll-to-bottom");
+  
+  if (!resultContainer || !scrollToTopBtn || !scrollToBottomBtn) return;
+  
+  const { scrollTop, scrollHeight, clientHeight } = resultContainer;
+  
+  // Show/hide scroll-to-top button based on scroll position
+  if (scrollTop > 50) {
+    scrollToTopBtn.classList.add("visible");
+  } else {
+    scrollToTopBtn.classList.remove("visible");
+  }
+  
+  // Show/hide scroll-to-bottom button based on scroll position
+  if (scrollTop + clientHeight < scrollHeight - 50) {
+    scrollToBottomBtn.classList.add("visible");
+  } else {
+    scrollToBottomBtn.classList.remove("visible");
+  }
+}
+
+// ============================================================================
 // WORD COUNT & READING TIME UTILITIES
 // ============================================================================
 
@@ -469,6 +526,16 @@ async function init() {
     await chrome.storage.local.set({ exclude_code_blocks: e.target.checked });
   });
 
+  // Scroll button event listeners
+  $("scroll-to-top").addEventListener("click", scrollToTop);
+  $("scroll-to-bottom").addEventListener("click", scrollToBottom);
+  
+  // Add scroll event listener to result container for button visibility
+  const resultContainer = $("result-container");
+  if (resultContainer) {
+    resultContainer.addEventListener("scroll", updateScrollButtons);
+  }
+
   // Load history on startup
   loadHistory();
 }
@@ -701,6 +768,9 @@ async function summarizePage() {
     $("summary-result").innerHTML = cleanHTML;
     $("result-container").classList.remove("hidden");
 
+    // Auto-scroll to top of result after generation
+    scrollToTop();
+
     // Display summary word count and reading time
     updateSummaryStats(summary);
 
@@ -777,6 +847,9 @@ async function retrySummarize() {
     // Safely inject sanitized HTML into the UI
     $("summary-result").innerHTML = cleanHTML;
     $("result-container").classList.remove("hidden");
+
+    // Auto-scroll to top of result after generation
+    scrollToTop();
 
     // Display summary word count and reading time
     updateSummaryStats(summary);

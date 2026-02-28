@@ -617,3 +617,58 @@ body.light-theme .trim-notice {
   color: #1d4ed8;
   border-color: rgba(37, 99, 235, 0.4);
 }
+
+/* Scroll Buttons Styles */
+#scroll-buttons {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.scroll-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #6c63ff;
+  background: rgba(108, 99, 255, 0.2);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0;
+  visibility: hidden;
+}
+
+#result-container:hover .scroll-btn,
+.scroll-btn.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.scroll-btn:hover {
+  background: #6c63ff;
+  transform: scale(1.1);
+}
+
+/* Position result container relative for absolute scroll buttons */
+#result-container {
+  position: relative;
+}
+
+/* Light theme scroll buttons */
+body.light-theme .scroll-btn {
+  background: rgba(108, 99, 255, 0.15);
+  color: #2c5282;
+  border-color: #6c63ff;
+}
+
+body.light-theme .scroll-btn:hover {
+  background: #6c63ff;
+  color: #fff;
+}
