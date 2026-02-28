@@ -7,63 +7,6 @@ let summary = null;
 let lastSummarizeContext = null;
 
 // ============================================================================
-// AUTO-SCROLL FUNCTIONS
-// ============================================================================
-
-/**
- * Scroll to the top of the result container with smooth behavior
- */
-function scrollToTop() {
-  const resultContainer = $("result-container");
-  if (resultContainer) {
-    resultContainer.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
-  }
-}
-
-/**
- * Scroll to the bottom of the result container with smooth behavior
- */
-function scrollToBottom() {
-  const resultContainer = $("result-container");
-  if (resultContainer) {
-    resultContainer.scrollTo({
-      top: resultContainer.scrollHeight,
-      behavior: "smooth"
-    });
-  }
-}
-
-/**
- * Update scroll button visibility based on scroll position
- */
-function updateScrollButtons() {
-  const resultContainer = $("result-container");
-  const scrollToTopBtn = $("scroll-to-top");
-  const scrollToBottomBtn = $("scroll-to-bottom");
-  
-  if (!resultContainer || !scrollToTopBtn || !scrollToBottomBtn) return;
-  
-  const { scrollTop, scrollHeight, clientHeight } = resultContainer;
-  
-  // Show/hide scroll-to-top button based on scroll position
-  if (scrollTop > 50) {
-    scrollToTopBtn.classList.add("visible");
-  } else {
-    scrollToTopBtn.classList.remove("visible");
-  }
-  
-  // Show/hide scroll-to-bottom button based on scroll position
-  if (scrollTop + clientHeight < scrollHeight - 50) {
-    scrollToBottomBtn.classList.add("visible");
-  } else {
-    scrollToBottomBtn.classList.remove("visible");
-  }
-}
-
-// ============================================================================
 // WORD COUNT & READING TIME UTILITIES
 // ============================================================================
 
@@ -186,32 +129,6 @@ function checkContentLimit(content, provider) {
 }
 
 /**
- * Remove code blocks from content before sending to AI
- * Removes markdown code blocks, inline code, and HTML pre/code elements
- * @param {string} content - The page content
- * @returns {string} - Content with code blocks removed
- */
-function stripCodeBlocks(content) {
-  if (!content) return content;
-  
-  // Pattern 1: Remove markdown code blocks (```...```)
-  let cleaned = content.replace(/```[\s\S]*?```/g, '');
-  
-  // Pattern 2: Remove inline code (`...`)
-  cleaned = cleaned.replace(/`[^`]+`/g, '');
-  
-  // Pattern 3: Remove HTML pre and code tags and their content
-  cleaned = cleaned.replace(/<pre>[\s\S]*?<\/pre>/gi, '');
-  cleaned = cleaned.replace(/<code>[\s\S]*?<\/code>/gi, '');
-  
-  // Clean up extra whitespace created by removals
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-  cleaned = cleaned.replace(/\s{3,}/g, ' ');
-  
-  return cleaned.trim();
-}
-
-/**
  * Intelligently trim content to fit within token limit
  * Tries to preserve complete sentences and important content
  * @param {string} content - The content to trim
@@ -219,7 +136,6 @@ function stripCodeBlocks(content) {
  * @returns {string} - Trimmed content
  */
 function trimContent(content, maxChars) {
-
   if (content.length <= maxChars) {
     return content;
   }
@@ -249,6 +165,36 @@ function trimContent(content, maxChars) {
 }
 
 /**
+ * Remove common code block patterns from extracted page text
+ * (fenced blocks, inline code markers, and heavily-indented code lines)
+ * @param {string} content - Raw extracted content
+ * @returns {string} - Content with code-heavy sections reduced
+ */
+function stripCodeBlocks(content) {
+  if (!content || typeof content !== "string") {
+    return "";
+  }
+
+  let cleaned = content;
+
+  // Remove fenced code blocks: ```...``` or ~~~...~~~
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, " ");
+  cleaned = cleaned.replace(/~~~[\s\S]*?~~~/g, " ");
+
+  // Remove inline code snippets enclosed with backticks
+  cleaned = cleaned.replace(/`[^`\n]+`/g, " ");
+
+  // Remove lines that look like code (4+ leading spaces / tab)
+  cleaned = cleaned
+    .split("\n")
+    .filter((line) => !/^\s{4,}|^\t/.test(line))
+    .join("\n");
+
+  // Normalize whitespace after removals
+  return cleaned.replace(/\s+/g, " ").trim();
+}
+
+/**
  * Show limit warning in the UI
  * @param {number} estimatedTokens - Estimated token count
  * @param {number} safeLimit - Safe token limit for the provider
@@ -260,7 +206,7 @@ function showLimitWarning(estimatedTokens, safeLimit) {
   warningEl.innerHTML = `
     <span>Content is very long (~${estimatedTokens.toLocaleString()} tokens). 
     May exceed ${safeLimit.toLocaleString()} token safe limit. 
-    Consider using a shorter page or the summary may be truncated.</span>
+    Consider using a shorter page or the summary may be truncated. Estimate is approximate — may vary for code or non-Latin text.</span>
   `;
   warningEl.classList.remove('hidden');
 }
@@ -326,7 +272,7 @@ const TOKEN_LIMITS = {
     charsPerToken: 4,     // Approximate chars per token
   },
   gemini: {
-    maxTokens: 1000000,   // Gemini 2.5 Flash context window
+    maxTokens: 1048576,   // Gemini 2.5 Flash context window
     safeLimit: 800000,    // Conservative limit
     charsPerToken: 4,
   },
@@ -341,7 +287,7 @@ const TOKEN_LIMITS = {
  * Maximum content length to extract (increased from 12000)
  * This allows for larger pages while still being manageable
  */
-const MAX_CONTENT_LENGTH = 50000;
+const MAX_CONTENT_LENGTH = 400000;
 
 
 /**
@@ -522,22 +468,16 @@ async function init() {
   $("clear-summary-btn").addEventListener("click", clearSummary);
   $("theme-toggle").addEventListener("click", toggleTheme);
   $("retry-btn").addEventListener("click", retrySummarize);
-  $("exclude-code-blocks").addEventListener("change", async (e) => {
-    await chrome.storage.local.set({ exclude_code_blocks: e.target.checked });
-  });
-
-  // Scroll button event listeners
-  $("scroll-to-top").addEventListener("click", scrollToTop);
-  $("scroll-to-bottom").addEventListener("click", scrollToBottom);
-  
-  // Add scroll event listener to result container for button visibility
-  const resultContainer = $("result-container");
-  if (resultContainer) {
-    resultContainer.addEventListener("scroll", updateScrollButtons);
-  }
 
   // Load history on startup
   loadHistory();
+
+  // Auto-click summarize button if opened via keyboard shortcut
+  const shortcutData = await chrome.storage.session.get(['autoSummarize']);
+  if (shortcutData.autoSummarize) {
+    await chrome.storage.session.remove(['autoSummarize']);
+    setTimeout(() => $("summarize-btn")?.click(), 100);
+  }
 }
 
 
@@ -618,6 +558,7 @@ async function saveApiKey(provider) {
 
 async function summarizePage() {
   summary = null;
+  lastSummarizeContext = null;
   const stored = await chrome.storage.local.get([
     "ai_provider",
     "openai_api_key",
@@ -655,23 +596,18 @@ async function summarizePage() {
         return;
       }
 
-      const [{ result: extractedContent }] =
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          func: extractPageContent,
-        });
+const [{ result: extractedContent }] =
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: extractPageContent,
+    args: [Math.min(
+      MAX_CONTENT_LENGTH,
+      (TOKEN_LIMITS[provider] || TOKEN_LIMITS.openai).safeLimit *
+        (TOKEN_LIMITS[provider] || TOKEN_LIMITS.openai).charsPerToken
+    )],
+  });
       pageContent = extractedContent.text;
       extractedImages = extractedContent.images || [];
-
-      // Store context for retry
-      lastSummarizeContext = {
-        provider,
-        apiKey,
-        pageContent,
-        summaryType: $("summary-type").value,
-        title: tab.title,
-        extractedImages
-      };
 
       // Check if code blocks should be excluded
       const excludeCodeBlocks = $("exclude-code-blocks").checked;
@@ -683,34 +619,33 @@ async function summarizePage() {
       updateContentStats(pageContent);
 
       // Check content limits and show warnings if needed
+      let trimmedContent = pageContent;
+      const limitCheck = checkContentLimit(trimmedContent, provider);
 
-  const limitCheck = checkContentLimit(pageContent, provider);
-  
-  if (limitCheck.isOverLimit) {
-    // Show warning before trimming
-    showLimitWarning(limitCheck.estimatedTokens, limitCheck.safeLimit);
-    
-    // Calculate safe character limit
-    const safeCharLimit = limitCheck.safeLimit * limitCheck.charsPerToken;
-    
-    // Trim content intelligently if it exceeds safe limit
-    if (pageContent.length > safeCharLimit) {
-      const originalLength = pageContent.length;
-      pageContent = trimContent(pageContent, safeCharLimit);
-      
-      // Show trim notice
-      showTrimNotice(originalLength, pageContent.length);
-      
-      // Update stored context with trimmed content
-      lastSummarizeContext.pageContent = pageContent;
-      
-      // Update stats display with trimmed content
-      updateContentStats(pageContent);
-    }
-  } else {
-    // Hide any previous warnings
-    hideLimitWarnings();
-  }
+      if (limitCheck.isOverLimit) {
+        // Show warning before trimming
+        showLimitWarning(limitCheck.estimatedTokens, limitCheck.safeLimit);
+
+        // Calculate safe character limit
+        const safeCharLimit = limitCheck.safeLimit * limitCheck.charsPerToken;
+
+        // Trim content intelligently if it exceeds safe limit
+        if (trimmedContent.length > safeCharLimit) {
+          const originalLength = trimmedContent.length;
+          trimmedContent = trimContent(trimmedContent, safeCharLimit);
+
+          // Show trim notice
+          showTrimNotice(originalLength, trimmedContent.length);
+
+          // Update stats display with trimmed content
+          updateContentStats(trimmedContent);
+        }
+      } else {
+        // Hide any previous warnings
+        hideLimitWarnings();
+      }
+
+      pageContent = trimmedContent;
 
 
       // Show image indicator
@@ -749,6 +684,18 @@ async function summarizePage() {
     }
 
     const summaryType = $("summary-type").value;
+
+    // Store validated context for retry
+    lastSummarizeContext = {
+      provider,
+      apiKey,
+      pageContent,
+      summaryType,
+      title: tab.title,
+      url: tab.url,
+      extractedImages,
+    };
+
     summary = await generateSummary(
       provider,
       apiKey,
@@ -784,6 +731,9 @@ async function summarizePage() {
     if (err && typeof err === "object" && err.type && err.userMessage) {
       // Already classified, use directly
       showError(err.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: err.type,
         debugInfo: err.debugInfo,
@@ -793,6 +743,9 @@ async function summarizePage() {
       // New error (from content extraction, validation, etc.), classify it once
       const errorInfo = classifyError(err, null);
       showError(errorInfo.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: errorInfo.type,
         debugInfo: errorInfo.debugInfo,
@@ -809,34 +762,35 @@ async function summarizePage() {
  */
 async function retrySummarize() {
   if (!lastSummarizeContext) {
+    hideRetryButton();
     showError("No previous request to retry. Please try again from the beginning.");
     return;
   }
 
-  const { provider, apiKey, pageContent, summaryType, title, extractedImages, excludeCodeBlocks } = lastSummarizeContext;
+  const { provider, apiKey, pageContent, summaryType, title, url, extractedImages } = lastSummarizeContext;
 
+  if (!pageContent || pageContent.length < 100) {
+    showError(USER_MESSAGES.content_extraction_failed);
+    hideRetryButton();
+    return;
+  }
 
+  $("retry-btn").disabled = true;
   setLoading(true);
   hideError();
   hideRetryButton();
   $("result-container").classList.add("hidden");
 
   try {
-    // Re-apply code block exclusion if it was enabled
-    let contentToSend = pageContent;
-    if (excludeCodeBlocks) {
-      contentToSend = stripCodeBlocks(pageContent);
-    }
-
     summary = await generateSummary(
       provider,
       apiKey,
-      contentToSend,
+      pageContent,
       summaryType,
       title,
       extractedImages,
+      url,
     );
-
 
     // Convert Markdown to raw HTML
     const rawHTML = marked.parse(summary);
@@ -848,14 +802,11 @@ async function retrySummarize() {
     $("summary-result").innerHTML = cleanHTML;
     $("result-container").classList.remove("hidden");
 
-    // Auto-scroll to top of result after generation
-    scrollToTop();
-
     // Display summary word count and reading time
     updateSummaryStats(summary);
 
     // Save to history
-    saveSummary(summary, title, "", summaryType);
+    saveSummary(summary, title, url || "", summaryType);
 
     // Refresh history list
     loadHistory();
@@ -864,6 +815,9 @@ async function retrySummarize() {
     if (err && typeof err === "object" && err.type && err.userMessage) {
       // Already classified, use directly
       showError(err.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: err.type,
         debugInfo: err.debugInfo,
@@ -873,6 +827,9 @@ async function retrySummarize() {
       // New error (from content extraction, validation, etc.), classify it once
       const errorInfo = classifyError(err, null);
       showError(errorInfo.userMessage);
+      if (lastSummarizeContext !== null) {
+        showRetryButton();
+      }
       console.error("[Generate Summary Error]", {
         type: errorInfo.type,
         debugInfo: errorInfo.debugInfo,
@@ -881,10 +838,11 @@ async function retrySummarize() {
     }
   } finally {
     setLoading(false);
+    $("retry-btn").disabled = false;
   }
 }
 
-function extractPageContent() {
+function extractPageContent(maxLength) {
   const selectors = [
     "article",
     "main",
@@ -944,7 +902,7 @@ function extractPageContent() {
 
   // Return full content for client-side trimming based on provider limits
   // The content will be intelligently trimmed in summarizePage() if needed
-  return { text: content.slice(0, MAX_CONTENT_LENGTH), images };
+  return { text: content.slice(0, maxLength), images };
 
 }
 
@@ -1028,6 +986,7 @@ async function generateSummary(provider, apiKey, content, type, title, images = 
 
 function setLoading(loading) {
   $("summarize-btn").disabled = loading;
+  $("retry-btn").disabled = loading;
   $("btn-text").textContent = loading
     ? "Summarizing..."
     : "Summarize This Page";
@@ -1043,7 +1002,11 @@ function showError(msg) {
   errorElement.textContent = msg;
   errorElement.classList.remove("hidden");
   errorElement.style.display = "block";
-  showRetryButton();
+  if (lastSummarizeContext) {
+    showRetryButton();
+  } else {
+    hideRetryButton();
+  }
   console.warn("[UI Error]", msg);
 }
 
@@ -1071,7 +1034,6 @@ function clearSummary() {
   $("result-container").classList.add("hidden");
   hideError();
   hideRetryButton();
-  hideLimitWarnings();
   lastSummarizeContext = null;
 }
 
