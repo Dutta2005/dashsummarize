@@ -496,9 +496,6 @@ async function init() {
   // Update button state based on API key presence
   updateSummarizeButtonState(currentProvider);
 
-  // Update model badge based on saved provider
-  updateModelBadge(currentProvider);
-
   // Event listeners
   $("ai-provider").addEventListener("change", handleProviderChange);
   $("save-openai-key").addEventListener("click", () => saveApiKey("openai"));
@@ -579,9 +576,6 @@ async function handleProviderChange() {
 
   // Update summarize button state based on API key presence
   updateSummarizeButtonState(provider);
-
-  // Update model badge when provider changes
-  updateModelBadge(provider);
 }
 
 /**
@@ -1062,7 +1056,12 @@ async function generateSummary(provider, apiKey, content, type, title, images = 
 }
 
 function setLoading(loading) {
-  $("summarize-btn").disabled = loading;
+  if (loading) {
+    $("summarize-btn").disabled = true;
+  } else {
+    const provider = $("ai-provider")?.value || "openai";
+    updateSummarizeButtonState(provider);
+  }
   $("retry-btn").disabled = loading;
   $("btn-text").textContent = loading
     ? "Summarizing..."
@@ -1343,27 +1342,4 @@ function initPasswordToggles() {
       }
     });
   });
-}
-
-// ============================================================================
-// MODEL BADGE
-// ============================================================================
-
-/**
- * Update the model badge in the UI based on selected provider
- * @param {string} provider - The AI provider (openai, gemini, claude)
- */
-function updateModelBadge(provider) {
-  const badgeEl = $('model-badge');
-  if (!badgeEl) return;
-  
-  // Get the display name for the provider
-  const modelName = MODEL_DISPLAY_NAMES[provider] || 'Unknown';
-  
-  // Remove all provider classes
-  badgeEl.classList.remove('openai', 'gemini', 'claude');
-  
-  // Add the current provider class and set text
-  badgeEl.classList.add(provider);
-  badgeEl.textContent = modelName;
 }
