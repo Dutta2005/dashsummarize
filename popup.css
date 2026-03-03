@@ -161,6 +161,18 @@ input::placeholder {
   color: #4ade80;
 }
 
+.api-key-helper {
+  font-size: 0.8rem;
+  margin-top: 8px;
+  color: #fbbf24;
+  padding: 8px 12px;
+  background: rgba(251, 191, 36, 0.1);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .error {
   color: #f87171;
   font-size: 0.85rem;

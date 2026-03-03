@@ -545,9 +545,6 @@ async function handleProviderChange() {
   } else {
     $("key-status").textContent = "";
   }
-
-  // Update summarize button state based on API key presence
-  updateSummarizeButtonState(provider);
 }
 
 /**
@@ -591,9 +588,6 @@ async function saveApiKey(provider) {
   await chrome.storage.local.set({ [`${provider}_api_key`]: key });
   $("key-status").textContent = "✓ API key saved";
   $("key-status").style.color = "#4ade80";
-
-  // Update summarize button state based on API key presence
-  updateSummarizeButtonState(provider);
 }
 
 async function summarizePage() {
