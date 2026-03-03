@@ -298,6 +298,15 @@ const TOKEN_LIMITS = {
 };
 
 /**
+ * Model display names mapping for UI badge
+ */
+const MODEL_DISPLAY_NAMES = {
+  openai: "GPT-4o-mini",
+  gemini: "Gemini 2.5 Flash",
+  claude: "Claude Sonnet 4",
+};
+
+/**
  * Maximum content length to extract (increased from 12000)
  * This allows for larger pages while still being manageable
  */
@@ -472,6 +481,9 @@ async function init() {
   // Update button state based on API key presence
   updateSummarizeButtonState(currentProvider);
 
+  // Update model badge based on saved provider
+  updateModelBadge(currentProvider);
+
   // Event listeners
   $("ai-provider").addEventListener("change", handleProviderChange);
   $("save-openai-key").addEventListener("click", () => saveApiKey("openai"));
@@ -552,6 +564,9 @@ async function handleProviderChange() {
 
   // Update summarize button state based on API key presence
   updateSummarizeButtonState(provider);
+
+  // Update model badge when provider changes
+  updateModelBadge(provider);
 }
 
 /**
@@ -759,8 +774,8 @@ const [{ result: extractedContent }] =
     $("summary-result").innerHTML = cleanHTML;
     $("result-container").classList.remove("hidden");
 
-    // Auto-scroll to top of result after generation
-    scrollToTop();
+    // Update model badge to show which model generated the summary
+    updateModelBadge(provider);
 
     // Display summary word count and reading time
     updateSummaryStats(summary);
@@ -845,6 +860,9 @@ async function retrySummarize() {
     // Safely inject sanitized HTML into the UI
     $("summary-result").innerHTML = cleanHTML;
     $("result-container").classList.remove("hidden");
+
+    // Update model badge to show which model generated the summary
+    updateModelBadge(provider);
 
     // Display summary word count and reading time
     updateSummaryStats(summary);
@@ -1310,4 +1328,27 @@ function initPasswordToggles() {
       }
     });
   });
+}
+
+// ============================================================================
+// MODEL BADGE
+// ============================================================================
+
+/**
+ * Update the model badge in the UI based on selected provider
+ * @param {string} provider - The AI provider (openai, gemini, claude)
+ */
+function updateModelBadge(provider) {
+  const badgeEl = $('model-badge');
+  if (!badgeEl) return;
+  
+  // Get the display name for the provider
+  const modelName = MODEL_DISPLAY_NAMES[provider] || 'Unknown';
+  
+  // Remove all provider classes
+  badgeEl.classList.remove('openai', 'gemini', 'claude');
+  
+  // Add the current provider class and set text
+  badgeEl.classList.add(provider);
+  badgeEl.textContent = modelName;
 }

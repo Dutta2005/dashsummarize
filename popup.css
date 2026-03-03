@@ -662,3 +662,49 @@ body.light-theme .trim-notice {
   color: #1d4ed8;
   border-color: rgba(37, 99, 235, 0.4);
 }
+
+/* Model Badge Styles */
+.model-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* OpenAI (GPT-4o-mini) - Purple gradient */
+.model-badge.openai {
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  color: #fff;
+  border: 1px solid #a855f7;
+}
+
+/* Gemini - Blue gradient */
+.model-badge.gemini {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  border: 1px solid #3b82f6;
+}
+
+/* Claude - Orange gradient */
+.model-badge.claude {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  color: #fff;
+  border: 1px solid #f97316;
+}
+
+/* Light theme adjustments for model badge */
+body.light-theme .model-badge.openai {
+  background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+}
+
+body.light-theme .model-badge.gemini {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+body.light-theme .model-badge.claude {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
